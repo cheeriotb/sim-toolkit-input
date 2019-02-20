@@ -27,14 +27,22 @@ public class InputApplet extends Applet implements ToolkitInterface, ToolkitCons
     private static byte[] ITEM_SETTINGS = new byte[] { 'S', 'e', 't', 't', 'i', 'n', 'g', 's' };
     private static byte[] ITEM_REQUEST_SYNC = new byte[] { 'R', 'e', 'q', 'u', 'e', 's', 't', ' ',
             '(', 's', 'y', 'n', 'c', ')' };
+    private static byte[] ITEM_REQUEST_ASYNC = new byte[] { 'R', 'e', 'q', 'u', 'e', 's', 't', ' ',
+            '(', 'a', 's', 'y', 'n', 'c', ')' };
 
     private static byte[] DEFAULT_TEXT = new byte[] { 'E', 'n', 't', 'e', 'r', ' ', 't', 'h', 'e',
             ' ', 'c', 'o', 'd', 'e' };
     private static short MAX_TEST_SIZE = (short) 0x80;
 
+    private static byte[] WAITING_TIMER = new byte[] { 'W', 'a', 'i', 't', 'i', 'n', 'g', ' ', 'f',
+            'o', 'r', ' ', 't', 'h', 'e', ' ', 't', 'i', 'm', 'e', 'o', 'u', 't' };
+    private static byte[] RESOURCE_UNAVAILABLE = new byte[] { 'R', 'e', 's', 'o', 'u', 'r', 'c',
+            'e', ' ', 'u', 'n', 'a', 'v', 'a', 'i', 'l', 'a', 'b', 'l', 'e' };
+
     private Object[] ITEMS = {
         ITEM_SETTINGS,
-        ITEM_REQUEST_SYNC
+        ITEM_REQUEST_SYNC,
+        ITEM_REQUEST_ASYNC
     };
 
     private byte mQualifier;
@@ -42,6 +50,13 @@ public class InputApplet extends Applet implements ToolkitInterface, ToolkitCons
     private short mTextLength;
     private short mMin;
     private short mMax;
+
+    private byte mTimerId = (byte) 0x00;
+    private static byte[] TIMER_VALUE = new byte[] { (byte) 0x00, (byte) 0x00, (byte) 0x30 };
+
+    private static short POSITION_TIMER_VALUE = (short) 0x06;
+    private byte[] mTimerAllocated = new byte[] { 'T', 'i', 'm', 'e', 'r', ' ', '0', ' ', 'a', 'l',
+            'l', 'o', 'c', 'a', 't', 'e', 'd' };
 
     private InputApplet() {
         ToolkitRegistry registry = ToolkitRegistry.getEntry();
@@ -70,26 +85,45 @@ public class InputApplet extends Applet implements ToolkitInterface, ToolkitCons
     }
 
     public void processToolkit(byte event) throws ToolkitException {
+        boolean stayAtSecondaryMenu = true;
         ProactiveResponseHandler response = ProactiveResponseHandler.getTheHandler();
 
         if (event == EVENT_MENU_SELECTION) {
             do {
-                selectItem();
+                if (mTimerId == (byte) 0x00) {
+                    selectItem();
 
-                if (response.getGeneralResult() != (byte) 0x00) {
-                    break;
-                }
+                    if (response.getGeneralResult() != (byte) 0x00) {
+                        break;
+                    }
 
-                switch (response.getItemIdentifier()) {
-                    case 1:  // ITEM_SETTINGS
-                        break;
-                    case 2:  // ITEM_REQUEST_SYNC
-                        getInput();
-                        break;
-                    default:
-                        break;
+                    switch (response.getItemIdentifier()) {
+                        case 1:  // ITEM_SETTINGS
+                            stayAtSecondaryMenu = false;
+                            break;
+                        case 2:  // ITEM_REQUEST_SYNC
+                            getInput();
+                            break;
+                        case 3:  // ITEM_REQUEST_ASYNC
+                            try {
+                                startTimer();
+                            } catch (Exception e) {
+                                displayText(RESOURCE_UNAVAILABLE);
+                            }
+                            stayAtSecondaryMenu = false;
+                            break;
+                        default:
+                            break;
+                    }
+                } else {
+                    displayText(WAITING_TIMER);
+                    stayAtSecondaryMenu = false;
                 }
-            } while (true);
+            } while (stayAtSecondaryMenu);
+        } else if (event == EVENT_TIMER_EXPIRATION) {
+            ToolkitRegistry.getEntry().releaseTimer(mTimerId);
+            mTimerId = (byte) 0x00;
+            getInput();
         }
     }
 
@@ -139,6 +173,32 @@ public class InputApplet extends Applet implements ToolkitInterface, ToolkitCons
         command.send();
     }
 
+    private void startTimer() throws ToolkitException {
+        byte timerId = ToolkitRegistry.getEntry().allocateTimer();
+        ProactiveHandler command = ProactiveHandler.getTheHandler();
+
+        try {
+            /*
+               Command Qualifier for TIMER MANAGEMENT
+
+               bit 1 to 2: 00 = start;
+                           01 = deactivate;
+                           10 = get current value.
+            */
+            command.init((byte) PRO_CMD_TIMER_MANAGEMENT, (byte) 0, DEV_ID_ME);
+            command.appendTLV((byte) (TAG_TIMER_IDENTIFIER | TAG_SET_CR), timerId);
+            command.appendTLV((byte) (TAG_TIMER_VALUE | TAG_SET_CR), TIMER_VALUE, (short) 0,
+                    (short) TIMER_VALUE.length);
+            command.send();
+
+            mTimerId = timerId;
+            mTimerAllocated[POSITION_TIMER_VALUE] = (byte) ('0' + timerId);
+            displayText(mTimerAllocated);
+        } catch (Exception e) {
+            ToolkitRegistry.getEntry().releaseTimer(timerId);
+        }
+    }
+
     private void displayText(byte[] buffer) {
         ProactiveHandler command = ProactiveHandler.getTheHandler();
 
@@ -151,6 +211,8 @@ public class InputApplet extends Applet implements ToolkitInterface, ToolkitCons
                   1 = wait for user to clear message.
         */
         command.initDisplayText((byte) 0, DCS_8_BIT_DATA, buffer, (short) 0, (short) buffer.length);
+        command.appendTLV((byte) (TAG_IMMEDIATE_RESPONSE | TAG_SET_CR), buffer, (short) 0,
+                (short) 0);
         command.send();
     }
 }
