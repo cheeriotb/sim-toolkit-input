@@ -22,22 +22,66 @@ import sim.toolkit.ToolkitRegistry;
 
 public class InputApplet extends Applet implements ToolkitInterface, ToolkitConstants {
 
-    private static byte[] MENU_ENTRY = new byte[] { 'G', 'e', 't', ' ', 'I', 'n', 'p', 'u', 't' };
+    private static final byte[] MENU_ENTRY = new byte[] {
+            'G', 'e', 't', ' ', 'I', 'n', 'p', 'u', 't'
+    };
 
-    private static byte[] ITEM_SETTINGS = new byte[] { 'S', 'e', 't', 't', 'i', 'n', 'g', 's' };
-    private static byte[] ITEM_REQUEST_SYNC = new byte[] { 'R', 'e', 'q', 'u', 'e', 's', 't', ' ',
-            '(', 's', 'y', 'n', 'c', ')' };
-    private static byte[] ITEM_REQUEST_ASYNC = new byte[] { 'R', 'e', 'q', 'u', 'e', 's', 't', ' ',
-            '(', 'a', 's', 'y', 'n', 'c', ')' };
+    private static final byte[] ITEM_SETTINGS = new byte[] {
+            'S', 'e', 't', 't', 'i', 'n', 'g', 's'
+    };
+    private static final byte[] ITEM_REQUEST_SYNC = new byte[] {
+            'R', 'e', 'q', 'u', 'e', 's', 't', ' ', '(', 's', 'y', 'n', 'c', ')'
+    };
+    private static final byte[] ITEM_REQUEST_ASYNC = new byte[] {
+            'R', 'e', 'q', 'u', 'e', 's', 't', ' ', '(', 'a', 's', 'y', 'n', 'c', ')'
+    };
 
-    private static byte[] DEFAULT_TEXT = new byte[] { 'E', 'n', 't', 'e', 'r', ' ', 't', 'h', 'e',
-            ' ', 'c', 'o', 'd', 'e' };
-    private static short MAX_TEST_SIZE = (short) 0x80;
+    private static final byte[] DEFAULT_TEXT = new byte[] {
+            'E', 'n', 't', 'e', 'r', ' ', 't', 'h', 'e', ' ', 'c', 'o', 'd', 'e'
+    };
+    private static final short MIN_TEST_SIZE = (short) 0x01;
+    private static final short MAX_TEST_SIZE = (short) 0x80;
 
-    private static byte[] WAITING_TIMER = new byte[] { 'W', 'a', 'i', 't', 'i', 'n', 'g', ' ', 'f',
-            'o', 'r', ' ', 't', 'h', 'e', ' ', 't', 'i', 'm', 'e', 'o', 'u', 't' };
-    private static byte[] RESOURCE_UNAVAILABLE = new byte[] { 'R', 'e', 's', 'o', 'u', 'r', 'c',
-            'e', ' ', 'u', 'n', 'a', 'v', 'a', 'i', 'l', 'a', 'b', 'l', 'e' };
+    private static final byte[] QUERY_DIGIT_ONLY = new byte[] {
+            'D', 'i', 'g', 'i', 't', ' ', '(', '0', ' ', 't', 'o', ' ', '9', ',', ' ', '*', ',',
+            ' ', '#', ' ', 'a', 'n', 'd', ' ', '+', ')', ' ', 'o', 'n', 'l', 'y', '?'
+    };
+    private static final byte[] QUERY_HIDE_INPUT = new byte[] {
+            'U', 's', 'e', 'r', ' ', 'i', 'n', 'p', 'u', 't', ' ', 's', 'h', 'a', 'l', 'l', ' ',
+            'n', 'o', 't', ' ', 'b', 'e', ' ', 'r', 'e', 'v', 'e', 'a', 'l', 'e', 'd', '?'
+    };
+    private static final byte[] QUERY_MIN = new byte[] {
+            'M', 'i', 'n', 'i', 'm', 'u', 'm', ' ', 'l', 'e', 'n', 'g', 't', 'h', '?', ' ', '(',
+            '1', ' ', '-', ' ', '9', ')'
+    };
+    private static final byte[] QUERY_MAX = new byte[] {
+            'M', 'a', 'x', 'i', 'm', 'u', 'm', ' ', 'l', 'e', 'n', 'g', 't', 'h', '?', ' ', '(',
+            '1', ' ', '-', ' ', '9', ')'
+    };
+    private static final byte[] QUERY_TEXT = new byte[] {
+            'T', 'e', 'x', 't', '?'
+    };
+
+    private static final byte[] WAITING_TIMER = new byte[] {
+            'W', 'a', 'i', 't', 'i', 'n', 'g', ' ', 'f', 'o', 'r', ' ', 't', 'h', 'e', ' ', 't',
+            'i', 'm', 'e', 'o', 'u', 't'
+    };
+    private static final byte[] RESOURCE_UNAVAILABLE = new byte[] {
+            'R', 'e', 's', 'o', 'u', 'r', 'c', 'e', ' ', 'u', 'n', 'a', 'v', 'a', 'i', 'l', 'a',
+            'b', 'l', 'e'
+    };
+
+    private static final short MIN_LENGTH = (short) 0x01;
+    private static final short MAX_LENGTH = (short) 0x09;
+
+    private static final byte CMD_QUALIFIER_YES_NO = (byte) 0x04;
+
+    private static final byte CMD_QUALIFIER_ALPHABET = (byte) 0x01;
+    private static final byte CMD_QUALIFIER_HIDE = (byte) 0x04;
+
+    private static final byte GET_INKEY_YES = (byte) 0x01;
+    private static final byte GET_INKEY_NO = (byte) 0x00;
+    private static final byte GET_INKEY_OTHER = (byte) 0xFF;
 
     private Object[] ITEMS = {
         ITEM_SETTINGS,
@@ -99,7 +143,7 @@ public class InputApplet extends Applet implements ToolkitInterface, ToolkitCons
 
                     switch (response.getItemIdentifier()) {
                         case 1:  // ITEM_SETTINGS
-                            stayAtSecondaryMenu = false;
+                            configure();
                             break;
                         case 2:  // ITEM_REQUEST_SYNC
                             getInput();
@@ -152,7 +196,102 @@ public class InputApplet extends Applet implements ToolkitInterface, ToolkitCons
         command.send();
     }
 
+    private void configure() {
+        byte input = GET_INKEY_OTHER;
+        byte qualifier = (byte) 0x00;
+
+        input = getInkey(CMD_QUALIFIER_YES_NO, QUERY_DIGIT_ONLY);
+        if (input == GET_INKEY_NO) {
+            qualifier |= CMD_QUALIFIER_ALPHABET;
+        } else if (input == GET_INKEY_OTHER) {
+            return;
+        }
+
+        input = getInkey(CMD_QUALIFIER_YES_NO, QUERY_HIDE_INPUT);
+        if (input == GET_INKEY_YES) {
+            qualifier |= CMD_QUALIFIER_HIDE;
+        } else if (input == GET_INKEY_OTHER) {
+            return;
+        }
+
+        short min = MIN_LENGTH;
+        input = getInkey((byte) 0x00, QUERY_MIN);
+        input -= (byte) '0';
+        if (!(input < MIN_LENGTH) && !(input > MAX_LENGTH)) {
+            min = input;
+        } else {
+            return;
+        }
+
+        short max = MAX_LENGTH;
+        if (min != MAX_LENGTH) {
+            input = getInkey((byte) 0x00, QUERY_MAX);
+            input -= (byte) '0';
+            if (!(input < min) && !(input > MAX_LENGTH)) {
+                max = input;
+            } else {
+                return;
+            }
+        } else {
+            max = min;
+        }
+
+        getInput(CMD_QUALIFIER_ALPHABET, QUERY_TEXT, (short) QUERY_TEXT.length, MIN_TEST_SIZE,
+                MAX_TEST_SIZE);
+
+        ProactiveResponseHandler response = ProactiveResponseHandler.getTheHandler();
+        if (response.getGeneralResult() == (byte) 0x00) {
+            mTextLength = response.getTextStringLength();
+            if (mTextLength > 0) {
+                response.copyTextString(mText, (short) 0);
+                mQualifier = qualifier;
+                mMin = min;
+                mMax = max;
+            }
+        }
+    }
+
+    private byte getInkey(byte qualifier, byte[] text) {
+        /*
+           Command Qualifier for GET INPUT
+
+           bit 1: 0 = digit (0 to 9, *, # and L) only;
+                  1 = alphabet set.
+           bit 2: 0 = SMS default alphabet;
+                  1 = UCS2 alphabet.
+           bit 3: 0 = character sets defined by bit 1 and bit 2 are enabled;
+                  1 = character sets defined by bit 1 and bit 2 are disabled
+                      and the "Yes/No" response is requested.
+           bit 4: 0 = user response shall be displayed.
+                      The terminal may allow alteration and/or confirmation;
+                  1 = an immediate digit response (0 to 9, * and #) is requested.
+           bit 8: 0 = no help information available;
+                  1 = help information available.
+        */
+
+        ProactiveHandler command = ProactiveHandler.getTheHandler();
+        command.initGetInkey(qualifier, DCS_8_BIT_DATA, text, (short) 0,
+                (short) text.length);
+        command.send();
+
+        ProactiveResponseHandler response = ProactiveResponseHandler.getTheHandler();
+        if (response.getGeneralResult() == (byte) 0x00) {
+            if (response.findTLV(TAG_TEXT_STRING, (byte) 1) == TLV_FOUND_CR_SET) {
+                if (response.getValueLength() > 1) {
+                    // Retrieve the second byte because the first byte indicates the DCS.
+                    return response.getValueByte((short) 1);
+                }
+            }
+        }
+
+        return GET_INKEY_OTHER;
+    }
+
     private void getInput() {
+        getInput(mQualifier, mText, mTextLength, mMin, mMax);
+    }
+
+    private void getInput(byte qualifier, byte[] text, short textLength, short min, short max) {
         ProactiveHandler command = ProactiveHandler.getTheHandler();
 
         /*
@@ -169,7 +308,12 @@ public class InputApplet extends Applet implements ToolkitInterface, ToolkitCons
            bit 8: 0 = no help information available;
                   1 = help information available.
         */
-        command.initGetInput(mQualifier, DCS_8_BIT_DATA, mText, (short) 0, mTextLength, mMin, mMax);
+        command.initGetInput(qualifier, DCS_8_BIT_DATA, text, (short) 0, (short) textLength, min,
+            max);
+        if (text != mText) {
+            command.appendTLV((byte) (TAG_DEFAULT_TEXT | TAG_SET_CR), DCS_8_BIT_DATA, mText,
+                    (short) 0, mTextLength);
+        }
         command.send();
     }
 
